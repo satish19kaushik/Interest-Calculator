@@ -422,22 +422,32 @@
 
         // Share result via WhatsApp
         document.getElementById('shareBtn').addEventListener('click', function () {
-            const principal = document.getElementById('principalResult').textContent;
-            const duration = document.getElementById('durationResult').textContent;
-            const rate = document.getElementById('rateResult').textContent;
-            const interest = document.getElementById('totalInterestResult').textContent;
-            const total = document.getElementById('totalResult').textContent;
+    const principal = document.getElementById('principalResult').textContent;
+    const duration = document.getElementById('durationResult').textContent;
+    const rate = document.getElementById('rateResult').textContent;
+    const interest = document.getElementById('totalInterestResult').textContent;
+    const total = document.getElementById('totalResult').textContent;
 
-            const text = `Simple Interest Calculation:
+    const text = `Simple Interest Calculation:
 Principal: ${principal}
 Duration: ${duration}
 Rate: ${rate}
 Total Interest: ${interest}
 Total Amount: ${total}`;
 
-            const encodedText = encodeURIComponent(text);
-            window.open(`https://wa.me/?text=${encodedText}`, '_blank');
-        });
+    const encodedText = encodeURIComponent(text);
+
+    const userAgent = navigator.userAgent.toLowerCase();
+    
+    if (userAgent.includes("android")) {
+        // Try deep link on Android
+        window.location.href = `intent://send/?text=${encodedText}#Intent;scheme=whatsapp;package=com.whatsapp;action=android.intent.action.SEND;end`;
+    } else {
+        // Fallback for iOS or browser
+        window.open(`https://wa.me/?text=${encodedText}`, '_blank');
+    }
+});
+
 
         // Export to PDF
         document.getElementById('exportBtn').addEventListener('click', function () {
