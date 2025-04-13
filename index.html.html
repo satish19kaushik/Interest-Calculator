@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Interest Calculator</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <div class="container" id="container">
+        <header>
+            <h1><i class="fas fa-calculator"></i></h1>
+            <button id="themeToggle" class="theme-toggle">
+                <i class="fas fa-moon"></i>
+            </button>
+        </header>
+
+        <div class="card">
+            <form id="simpleInterestForm">
+                <div class="form-group">
+                    <label for="principal">Principal Amount</label>
+                    <input type="number" id="principal" placeholder="Enter principal amount" min="1" step="any"
+                        required>
+                    <div class="error-text">Principal amount is required and must be positive</div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="rate">Interest Rate (%)</label>
+                        <input type="number" id="rate" placeholder="Enter interest rate" min="0.01" step="any" required>
+                        <div class="error-text">Interest rate is required</div>
+                    </div>
+                    <div class="form-group">
+                        <label for="rateType">Rate Type</label>
+                        <select id="rateType">
+                            <option value="annual">Annual</option>
+                            <option value="monthly">Monthly</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="startDate">Start Date</label>
+                        <input type="date" id="startDate" required>
+                        <div class="error-text">Start date is required</div>
+                    </div>
+                    <div class="form-group">
+                        <label for="endDate">End Date</label>
+                        <input type="date" id="endDate" required>
+                        <div class="error-text">End date must be after start date</div>
+                    </div>
+                </div>
+
+                <div class="button-group">
+                    <button type="submit" id="calculateBtn">
+                        <span>Calculate</span>
+                        <div class="loader"></div>
+                    </button>
+                    <button type="button" class="secondary" id="resetBtn">
+                        <i class="fas fa-refresh"></i>
+                        <span>Reset</span>
+                    </button>
+                    <button type="button" class="secondary" id="historyToggleBtn">
+                        <i class="fas fa-history"></i>
+                        <span>History</span>
+                    </button>
+                </div>
+            </form>
+
+            <div id="result" class="result">
+                <div class="result-row">
+                    <span class="result-label">Principal Amount</span>
+                    <span class="result-value" id="principalResult">$0.00</span>
+                </div>
+                <div class="result-row">
+                    <span class="result-label">Duration</span>
+                    <span class="result-value" id="durationResult">0 days</span>
+                </div>
+                <div class="result-row">
+                    <span class="result-label">Interest Rate</span>
+                    <span class="result-value" id="rateResult">0%</span>
+                </div>
+                <div class="result-row">
+                    <span class="result-label">Total Interest</span>
+                    <span class="result-value" id="totalInterestResult">$0.00</span>
+                </div>
+                <div class="result-row">
+                    <span class="result-label">Total Amount</span>
+                    <span class="result-value total-payable" id="totalResult">$0.00</span>
+                </div>
+                <div class="export-actions">
+                    <button id="shareBtn" class="secondary">
+                        <i class="fab fa-whatsapp"></i>
+                        <span>Share</span>
+                    </button>
+                    <button id="exportBtn" onclick="printResult()" class="secondary">
+                        <i class="fas fa-file-export"></i>
+                        <span>Export</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="overlay" class="overlay"></div>
+
+    <div id="historyContainer" class="history-container">
+        <div class="history-header">
+            <h2 class="history-title">Calculation History</h2>
+            <button class="close-history" id="closeHistory">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div id="historyItems"></div>
+    </div>
+<!-- jsPDF -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<!-- html2canvas (used internally by jsPDF for rendering DOM) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+    <script>
+        // DOM Elements
+        const themeToggle = document.getElementById('themeToggle');
+        const themeIcon = themeToggle.querySelector('i');
+        const historyToggleBtn = document.getElementById('historyToggleBtn');
+        const historyContainer = document.getElementById('historyContainer');
+        const closeHistoryBtn = document.getElementById('closeHistory');
+        const overlay = document.getElementById('overlay');
+        const historyItems = document.getElementById('historyItems');
+        const simpleInterestForm = document.getElementById('simpleInterestForm');
+        const resetBtn = document.getElementById('resetBtn');
+
+        // Set today's date as default for date inputs
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('startDate').value = today;
+        document.getElementById('endDate').value = today;
+
+        // Theme toggle
+        themeToggle.addEventListener('click', () => {
+            const isDark = document.body.getAttribute('data-theme') === 'dark';
+
+            if (isDark) {
+                document.body.removeAttribute('data-theme');
+                themeIcon.classList.remove('fa-sun');
+                themeIcon.classList.add('fa-moon');
+                localStorage.setItem('theme', 'light');
+            } else {
+                document.body.setAttribute('data-theme', 'dark');
+                themeIcon.classList.remove('fa-moon');
+                themeIcon.classList.add('fa-sun');
+                localStorage.setItem('theme', 'dark');
+            }
+        });
+
+        // Load saved theme
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme === 'dark') {
+            document.body.setAttribute('data-theme', 'dark');
+            themeIcon.classList.remove('fa-moon');
+            themeIcon.classList.add('fa-sun');
+        }
+
+        // History toggle - slide up
+        historyToggleBtn.addEventListener('click', () => {
+            historyContainer.classList.add('show');
+            overlay.classList.add('show');
+            loadHistory();
+        });
+
+        // Close history - slide down
+        closeHistoryBtn.addEventListener('click', () => {
+            historyContainer.classList.remove('show');
+            overlay.classList.remove('show');
+        });
+
+        // Close history when clicking overlay
+        overlay.addEventListener('click', () => {
+            historyContainer.classList.remove('show');
+            overlay.classList.remove('show');
+        });
+
+        // Form validation
+        function validateForm() {
+            const principal = document.getElementById('principal').value;
+            const rate = document.getElementById('rate').value;
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+
+            let isValid = true;
+
+            // Reset error states
+            document.querySelectorAll('.form-group').forEach(group => {
+                group.classList.remove('show-error');
+            });
+
+            // Principal validation
+            if (!principal || parseFloat(principal) <= 0) {
+                document.getElementById('principal').parentElement.classList.add('show-error');
+                isValid = false;
+            }
+
+            // Rate validation
+            if (!rate || parseFloat(rate) <= 0) {
+                document.getElementById('rate').parentElement.classList.add('show-error');
+                isValid = false;
+            }
+
+            // Date validation
+            if (!startDate) {
+                document.getElementById('startDate').parentElement.classList.add('show-error');
+                isValid = false;
+            }
+
+            if (!endDate) {
+                document.getElementById('endDate').parentElement.classList.add('show-error');
+                isValid = false;
+            }
+
+            // Validate end date is after start date
+            if (startDate && endDate && new Date(endDate) <= new Date(startDate)) {
+                document.getElementById('endDate').parentElement.classList.add('show-error');
+                isValid = false;
+            }
+
+            return isValid;
+        }
+
+        // Format currency
+        function formatCurrency(amount) {
+            return '$' + amount.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,');
+        }
+
+        // Calculate simple interest
+        simpleInterestForm.addEventListener('submit', function (e) {
+            e.preventDefault();
+
+            if (!validateForm()) {
+                return;
+            }
+
+            // Show loading animation
+            const calculateBtn = document.getElementById('calculateBtn');
+            const loader = calculateBtn.querySelector('.loader');
+            calculateBtn.querySelector('span').style.display = 'none';
+            loader.style.display = 'block';
+
+            setTimeout(() => {
+                const principal = parseFloat(document.getElementById('principal').value);
+                const rate = parseFloat(document.getElementById('rate').value);
+                const rateType = document.getElementById('rateType').value;
+                const startDate = new Date(document.getElementById('startDate').value);
+                const endDate = new Date(document.getElementById('endDate').value);
+
+                // Calculate duration in days
+                const durationDays = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
+                const durationMonths = durationDays / 30; // Approximation
+                const durationYears = durationDays / 365; // Approximation
+
+                // Calculate interest based on rate type
+                let annualRate = rate;
+                if (rateType === 'monthly') {
+                    annualRate = rate * 12;
+                }
+
+                // Simple interest formula: P * r * t
+                const interest = principal * (annualRate / 100) * durationYears;
+                const totalAmount = principal + interest;
+
+                // Display results
+                document.getElementById('principalResult').textContent = formatCurrency(principal);
+                document.getElementById('durationResult').textContent = `${durationDays} days (~ ${Math.floor(durationMonths)} months)`;
+                document.getElementById('rateResult').textContent = `${rate}% ${rateType}`;
+                document.getElementById('totalInterestResult').textContent = formatCurrency(interest);
+                document.getElementById('totalResult').textContent = formatCurrency(totalAmount);
+
+                document.getElementById('result').classList.add('show');
+
+                // Save to history
+                saveToHistory({
+                    principal,
+                    rate,
+                    rateType,
+                    startDate: startDate.toISOString().split('T')[0],
+                    endDate: endDate.toISOString().split('T')[0],
+                    durationDays,
+                    interest,
+                    totalAmount,
+                    timestamp: new Date().toISOString()
+                });
+
+                // Hide loading animation
+                calculateBtn.querySelector('span').style.display = 'inline';
+                loader.style.display = 'none';
+            }, 500); // Simulate calculation time
+        });
+
+        // Reset form
+        resetBtn.addEventListener('click', function () {
+            document.getElementById('principal').value = '';
+            document.getElementById('rate').value = '';
+            document.getElementById('startDate').value = today;
+            document.getElementById('endDate').value = today;
+            document.getElementById('result').classList.remove('show');
+
+            // Reset error states
+            document.querySelectorAll('.form-group').forEach(group => {
+                group.classList.remove('show-error');
+            });
+        });
+
+        // Save calculation to history
+        function saveToHistory(data) {
+            let history = JSON.parse(localStorage.getItem('interestHistory')) || [];
+            history.unshift(data); // Add to beginning of array
+
+            // Limit history to 10 items
+            if (history.length > 10) {
+                history = history.slice(0, 10);
+            }
+
+            localStorage.setItem('interestHistory', JSON.stringify(history));
+        }
+
+        // Load history from localStorage
+        function loadHistory() {
+            const history = JSON.parse(localStorage.getItem('interestHistory')) || [];
+            historyItems.innerHTML = '';
+
+            if (history.length === 0) {
+                historyItems.innerHTML = '<p>No calculation history yet.</p>';
+                return;
+            }
+
+            history.forEach((item, index) => {
+                const historyItem = document.createElement('div');
+                historyItem.className = 'history-item';
+
+                const date = new Date(item.timestamp);
+                const formattedDate = date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+
+                historyItem.innerHTML = `
+                    <div class="history-item-header">
+                        <span>Calculation #${index + 1}</span>
+                        <span>${formattedDate}</span>
+                    </div>
+                    <div class="history-item-body">
+                        <div class="result-row">
+                            <span class="result-label">Principal</span>
+                            <span>${formatCurrency(item.principal)}</span>
+                        </div>
+                        <div class="result-row">
+                            <span class="result-label">Rate</span>
+                            <span>${item.rate}% ${item.rateType}</span>
+                        </div>
+                        <div class="result-row">
+                            <span class="result-label">Period</span>
+                            <span>${item.startDate} to ${item.endDate} (${item.durationDays} days)</span>
+                        </div>
+                        <div class="result-row">
+                            <span class="result-label">Interest</span>
+                            <span>${formatCurrency(item.interest)}</span>
+                        </div>
+                        <div class="result-row">
+                            <span class="result-label">Total</span>
+                            <span class="total-payable">${formatCurrency(item.totalAmount)}</span>
+                        </div>
+                    </div>
+                    <div class="history-actions">
+                        <button class="use-this-btn secondary" data-index="${index}">
+                            <i class="fas fa-copy"></i>
+                            <span>Use This</span>
+                        </button>
+                        <button class="delete-btn secondary" data-index="${index}">
+                            <i class="fas fa-trash"></i>
+                            <span>Delete</span>
+                        </button>
+                    </div>
+                `;
+
+                historyItems.appendChild(historyItem);
+            });
+
+            // Add event listeners to history item buttons
+            document.querySelectorAll('.use-this-btn').forEach(btn => {
+                btn.addEventListener('click', function () {
+                    const index = parseInt(this.getAttribute('data-index'));
+                    const history = JSON.parse(localStorage.getItem('interestHistory')) || [];
+                    const item = history[index];
+
+                    document.getElementById('principal').value = item.principal;
+                    document.getElementById('rate').value = item.rate;
+                    document.getElementById('rateType').value = item.rateType;
+                    document.getElementById('startDate').value = item.startDate;
+                    document.getElementById('endDate').value = item.endDate;
+
+                    // Close history panel
+                    historyContainer.classList.remove('show');
+                    overlay.classList.remove('show');
+
+                    // Scroll to top
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                });
+            });
+
+            document.querySelectorAll('.delete-btn').forEach(btn => {
+                btn.addEventListener('click', function () {
+                    const index = parseInt(this.getAttribute('data-index'));
+                    const history = JSON.parse(localStorage.getItem('interestHistory')) || [];
+
+                    history.splice(index, 1);
+                    localStorage.setItem('interestHistory', JSON.stringify(history));
+
+                    loadHistory();
+                });
+            });
+        }
+
+        // Share result via WhatsApp
+        document.getElementById('shareBtn').addEventListener('click', function () {
+            const principal = document.getElementById('principalResult').textContent;
+            const duration = document.getElementById('durationResult').textContent;
+            const rate = document.getElementById('rateResult').textContent;
+            const interest = document.getElementById('totalInterestResult').textContent;
+            const total = document.getElementById('totalResult').textContent;
+
+            const text = `Simple Interest Calculation:
+Principal: ${principal}
+Duration: ${duration}
+Rate: ${rate}
+Total Interest: ${interest}
+Total Amount: ${total}`;
+
+            const encodedText = encodeURIComponent(text);
+            window.open(`https://wa.me/?text=${encodedText}`, '_blank');
+        });
+
+        // Export to PDF
+        // document.getElementById('exportBtn').addEventListener('click', function () {
+        //     const { jsPDF } = window.jspdf;
+        //     const doc = new jsPDF();
+
+        //     const content = document.getElementById('result').innerText;
+        //     doc.text(content, 10, 10);
+
+        //     doc.save('calculation-details.pdf');
+        // });
+
+//         document.getElementById('exportBtn').addEventListener('click', async function () {
+//     const { jsPDF } = window.jspdf;
+//     const doc = new jsPDF();
+
+//     const content = document.getElementById('result').innerText;
+//     doc.text(content, 10, 10);
+
+//     doc.save('calculation-details.pdf');
+//   });
+
+function printResult() {
+  // Get elements
+  const container = document.getElementById('container');
+  const form = document.getElementById('simpleInterestForm');
+
+  // Hide unwanted elements
+//   if (container) container.style.display = 'none';
+  if (form) form.style.display = 'none';
+
+  // Trigger print
+  window.print();
+
+  // Show elements back after printing
+  if (container) container.style.display = '';
+  if (form) form.style.display = '';
+}
+
+
+
+
+
+    </script>
+</body>
+
+</html>
