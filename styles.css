@@ -374,7 +374,10 @@ button.secondary:hover {
     opacity: 1;
     visibility: visible;
 }
-
+.historyItems-history-container{
+    max-height: 80vh;
+    overflow-y: auto;
+}
 /* Responsive styles */
 @media (max-width: 640px) {
     .button-group {
